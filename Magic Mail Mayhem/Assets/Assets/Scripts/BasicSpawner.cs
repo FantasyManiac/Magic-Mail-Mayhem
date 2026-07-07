@@ -87,6 +87,13 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
         startMenu.SetActive(false);
         loadingMenu.SetActive(true);
 
+        if (lobbyRunner != null)
+        {
+            await lobbyRunner.Shutdown();
+            Destroy(lobbyRunner.gameObject);
+            lobbyRunner = null;
+        }
+
         if (gameRunner != null)
         {
             await gameRunner.Shutdown();
@@ -167,6 +174,7 @@ public class BasicSpawner : MonoBehaviour, INetworkRunnerCallbacks
         if (runner.ActivePlayers.Count() >= 2)
         {
             runner.SessionInfo.IsOpen = false;
+            GameManager.Instance.StartMatch();
             Debug.Log("Room closed.");
         }
     }

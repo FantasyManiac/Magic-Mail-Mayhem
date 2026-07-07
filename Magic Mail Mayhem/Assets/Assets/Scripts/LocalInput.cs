@@ -42,6 +42,7 @@ public class LocalInput : MonoBehaviour, INetworkRunnerCallbacks
             data.Move = move;
             bool sprintHeld = Keyboard.current.shiftKey.isPressed || Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
             data.Sprint = sprintHeld;
+            data.pickup = Mouse.current.leftButton.isPressed;
         }
 
         if (Mouse.current != null)
