@@ -30,19 +30,6 @@ public class GameManager : NetworkBehaviour
 
     public override void Spawned()
     {
-        // if (!Object.HasStateAuthority)
-        //     return;
-
-        // MatchTimer = TickTimer.CreateFromSeconds(Runner, matchDuration);
-
-        // isItemSpawnPointFree = new bool[itemSpawnPoints.Length];
-        // for (int i = 0; i < isItemSpawnPointFree.Length; i++)
-        // {
-        //     isItemSpawnPointFree[i] = true;
-        // }
-
-        // SpawnStartingItems();
-
         Debug.Log($"GameManager Spawned. StateAuthority={Object.HasStateAuthority}");
 
         if (!Object.HasStateAuthority)
@@ -116,7 +103,7 @@ public class GameManager : NetworkBehaviour
                 Quaternion.identity);
         
         isItemSpawnPointFree[i] = false;
-        item.GetComponent<Item>().currentPosition = i;
+        item.GetComponent<Item>().CurrentPosition = i;
 
         spawnedItems.Add(item);
     }
@@ -130,6 +117,7 @@ public class GameManager : NetworkBehaviour
         {
             spawnedItems.Remove(item);
             Runner.Despawn(item);
+            isItemSpawnPointFree[item.GetComponent<Item>().CurrentPosition] = true;
         }
 
         SpawnRandomItem();
@@ -144,7 +132,6 @@ public class GameManager : NetworkBehaviour
         {
             spawnedItems.Remove(item);
             Runner.Despawn(item);
-            isItemSpawnPointFree[item.GetComponent<Item>().currentPosition] = true;
         }
     }
 
