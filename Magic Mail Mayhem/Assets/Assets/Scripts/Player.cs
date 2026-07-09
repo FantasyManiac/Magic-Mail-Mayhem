@@ -37,6 +37,7 @@ public class Player : NetworkBehaviour
     private NetworkCharacterController controller;
     private bool sprintRequested;
     private PlayerInventory inventory;
+    // public GameObject inGameUI;
 
     [Networked]
     public float Stamina { get; set; }
@@ -77,6 +78,8 @@ public class Player : NetworkBehaviour
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+        
+        // inGameUI.SetActive(true);
     }
 
     private void Update()
@@ -110,7 +113,7 @@ public class Player : NetworkBehaviour
         
         if (input.pickup)
         {
-            TryPickupItem();
+            ItemInteraction();
         }
 
         float speed = walkSpeed;
@@ -155,7 +158,7 @@ public class Player : NetworkBehaviour
         controller.Move(moveDirection);
     }
 
-    private void TryPickupItem()
+    private void ItemInteraction()
     {
         if (inventory == null || GameManager.Instance == null)
         {
@@ -180,12 +183,62 @@ public class Player : NetworkBehaviour
 
         if (closestCollider != null)
         {
-            if (closestCollider.gameObject.tag == "Item") {
-                // Debug.Log($"Found closest item at distance {closestDistance}, calling RPC");
-                NetworkObject networkItem = closestCollider.GetComponent<NetworkObject>();
-                RPC_PickupItem(networkItem);
-            } else if (closestCollider.gameObject.tag == "NPC") {
+            if (closestCollider.CompareTag("Item") || closestCollider.transform.root.CompareTag("Item"))
+            {
+                NetworkObject networkItem = ResolveNetworkItem(closestCollider);
 
+                if (networkItem != null)
+                {
+                    Item itemData = networkItem.GetComponent<Item>();
+                    string code = itemData != null && !string.IsNullOrEmpty(itemData.itemCode) ? itemData.itemCode : networkItem.name;
+
+                    if (inventory != null)
+                    {
+                        inventory.AddItem(networkItem);
+                        Debug.Log($"Local pickup: {code}");
+                    }
+
+                    RPC_PickupItem(networkItem);
+                }
+            }
+            else if (closestCollider.CompareTag("NPC") || closestCollider.transform.root.CompareTag("NPC"))
+            {
+                NPCDelivery npc = closestCollider.GetComponentInParent<NPCDelivery>();
+                if (npc == null)
+                    npc = closestCollider.GetComponent<NPCDelivery>();
+
+                if (npc != null && inventory != null)
+                {
+                    bool hasItem = inventory.Contains(npc.needs);
+                    Debug.Log($"Delivery check. Needed={npc.needs}, inventory has item={hasItem}");
+
+                    if (hasItem)
+                    {
+                        inventory.RemoveItem(npc.needs);
+                        Debug.Log($"Found in bag! Delivering {npc.needs}");
+
+                        if (Object.HasStateAuthority)
+                        {
+                            GameManager.Instance.ItemDelivered(npc.GetComponent<NetworkObject>());
+                            Debug.Log("Delivered");
+                        }
+                        else
+                        {
+                            // Debug.Log(
+                            //     $"Player={Object.Id} " +
+                            //     $"InputAuthority={Object.HasInputAuthority} " +
+                            //     $"StateAuthority={Object.HasStateAuthority}"
+                            // );
+                            // Debug.Log("Calling RPC_DeliverItem");
+                            RPC_RequestDelivery(npc.GetComponent<NetworkObject>());
+                            // Debug.Log("RPC_DeliverItem called");
+                        }
+                    }
+                }
+                else if (npc != null)
+                {
+                    Debug.Log($"Delivery failed. Needed={npc.needs}, inventory has item={inventory?.Contains(npc.needs)}");
+                }
             }
         }
         else
@@ -194,14 +247,55 @@ public class Player : NetworkBehaviour
         }
     }
 
+    private NetworkObject ResolveNetworkItem(Collider collider)
+    {
+        if (collider == null)
+            return null;
+
+        Item itemComponent = collider.GetComponent<Item>()
+            ?? collider.GetComponentInParent<Item>()
+            ?? collider.GetComponentInChildren<Item>();
+
+        if (itemComponent != null)
+        {
+            NetworkObject networkItem = itemComponent.GetComponent<NetworkObject>()
+                ?? itemComponent.GetComponentInParent<NetworkObject>()
+                ?? itemComponent.GetComponentInChildren<NetworkObject>();
+
+            if (networkItem != null)
+                return networkItem;
+        }
+
+        return collider.GetComponent<NetworkObject>()
+            ?? collider.GetComponentInParent<NetworkObject>()
+            ?? collider.GetComponentInChildren<NetworkObject>();
+    }
+
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_PickupItem(NetworkObject item)
     {
-        if (inventory != null && item != null)
+        Debug.Log($"RPC Pickup item={item}");
+
+        if (item != null && GameManager.Instance != null)
         {
-            inventory.AddItem(item);
             GameManager.Instance.ItemPicked(item);
         }
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.All)]
+    private void RPC_RequestDelivery(NetworkObject npc)
+    {
+        Debug.Log($"RPC_RequestDelivery executed on {name} | InputAuthority={Object.HasInputAuthority} | StateAuthority={Object.HasStateAuthority}");
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ItemDelivered(npc);
+            Debug.Log("Delivered");
+        }
+        // else
+        // {
+        //     Debug.Log("Delivery request received by non-authority instance");
+        // }
     }
 
     private void LateUpdate()

@@ -10,9 +10,14 @@ public class GameManager : NetworkBehaviour
     [SerializeField] private float matchDuration = 300f; // 5 minutes
 
     [Header("Pumpkins")]
-    [SerializeField] private NetworkPrefabRef itemPrefab;
+    [SerializeField] private List<NetworkPrefabRef> itemPrefabs;
+    [SerializeField] private List<NetworkPrefabRef> npcPrefabs;
+    private int itemCount;
+    private int NPCCount;
     [SerializeField] private Transform[] itemSpawnPoints;
+    [SerializeField] private Transform[] NPCSpawnPoints;
     private bool[] isItemSpawnPointFree;
+    private bool[] isNPCSpawnPointFree;
     [SerializeField] private int startingItems = 5;
 
     [Networked]
@@ -22,10 +27,14 @@ public class GameManager : NetworkBehaviour
     public NetworkBool MatchEnded { get; set; }
 
     private readonly List<NetworkObject> spawnedItems = new();
+    private readonly List<NetworkObject> spawnedNPCs = new();
+    // public GameObject inGameUI;
 
     private void Awake()
     {
         Instance = this;
+        itemCount = itemPrefabs.Count - 1;
+        NPCCount = npcPrefabs.Count - 1;
     }
 
     public override void Spawned()
@@ -36,9 +45,13 @@ public class GameManager : NetworkBehaviour
             return;
 
         isItemSpawnPointFree = new bool[itemSpawnPoints.Length];
+        isNPCSpawnPointFree = new bool[NPCSpawnPoints.Length];
 
         for (int i = 0; i < isItemSpawnPointFree.Length; i++)
             isItemSpawnPointFree[i] = true;
+
+        for (int i = 0; i < isNPCSpawnPointFree.Length; i++)
+            isNPCSpawnPointFree[i] = true;
     }
 
     public void StartMatch()
@@ -84,6 +97,9 @@ public class GameManager : NetworkBehaviour
 
         if (itemSpawnPoints.Length == 0)
             return;
+
+        if (NPCSpawnPoints.Length == 0)
+            return;
         
         Debug.Log($"SpawnRandomItem()  Authority={Object.HasStateAuthority}");
 
@@ -96,28 +112,54 @@ public class GameManager : NetworkBehaviour
             point = itemSpawnPoints[i];
         } while (!isItemSpawnPointFree[i]);
 
+        int j = 0;
+        Transform point2;
+
+        do
+        {
+            j = Random.Range(0, NPCSpawnPoints.Length);
+            point2 = NPCSpawnPoints[j];
+        } while (!isNPCSpawnPointFree[j]);
+
         NetworkObject item =
             Runner.Spawn(
-                itemPrefab,
+                itemPrefabs[itemCount],
                 point.position,
                 Quaternion.identity);
+
+        NetworkObject npc =
+            Runner.Spawn(
+                npcPrefabs[NPCCount],
+                point2.position,
+                Quaternion.identity);
         
+        itemCount -= 1;
+        NPCCount -= 1;
+
+        if (itemCount < 0)
+            itemCount = itemPrefabs.Count - 1;
+        
+        if (NPCCount < 0)
+            NPCCount = npcPrefabs.Count - 1;
+
         isItemSpawnPointFree[i] = false;
+        isNPCSpawnPointFree[j] = false;
         item.GetComponent<Item>().CurrentPosition = i;
+        npc.GetComponent<NPCDelivery>().needs = item.GetComponent<Item>().itemCode;
 
         spawnedItems.Add(item);
+        spawnedNPCs.Add(npc);
     }
 
-    public void ItemDelivered(NetworkObject item)
+    public void ItemDelivered(NetworkObject npc)
     {
         if (!Object.HasStateAuthority)
             return;
-
-        if (item != null)
+        
+        if (npc != null)
         {
-            spawnedItems.Remove(item);
-            Runner.Despawn(item);
-            isItemSpawnPointFree[item.GetComponent<Item>().CurrentPosition] = true;
+            spawnedNPCs.Remove(npc);
+            Runner.Despawn(npc);
         }
 
         SpawnRandomItem();

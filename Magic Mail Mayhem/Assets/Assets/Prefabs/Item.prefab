@@ -128,6 +128,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Item
   _CurrentPosition: 0
+  itemCode: Blue
+  icon: {fileID: 2800000, guid: db2440b59c55b69478cf03658b2f12bd, type: 3}
 --- !u!114 &1716302430793892942
 MonoBehaviour:
   m_ObjectHideFlags: 0
